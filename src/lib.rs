@@ -17,6 +17,8 @@ mod tests {
     use crate::{
         block::BlockDevice,
         cache::{self, get_block_cache, BlockCache, BlockCacheManager, BLOCK_SIZE},
+        ext4::layout::SuperBlock,
+        fat32::layout::BIOSParameterBlock,
         BLOCK_CACHE_MANAGER,
     };
     use alloc::sync::Arc;
@@ -46,5 +48,8 @@ mod tests {
     fn cache_test() {
         let binding = get_block_cache(0, Arc::new(BLOCK_DEVICE));
         let cache = binding.lock();
+        //let super_block = cache.get_ref::<BIOSParameterBlock>(0);
+        let super_block = cache.get_ref::<SuperBlock>(0);
+        println!("{:#x?}", super_block);
     }
 }
