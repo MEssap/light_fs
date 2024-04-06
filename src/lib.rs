@@ -67,5 +67,7 @@ mod tests {
             100 * 1024 * 1024 / 512,
             1,
         );
+
+        BLOCK_CACHE_MANAGER.lock().sync_all();
     }
 }

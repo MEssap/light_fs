@@ -122,6 +122,13 @@ impl BlockCacheManager {
             block_cache
         }
     }
+
+    /// use this to sync all cache
+    pub fn sync_all(&self) {
+        for (_, cache) in &self.cache_queue {
+            cache.lock().sync();
+        }
+    }
 }
 
 pub fn get_block_cache(
