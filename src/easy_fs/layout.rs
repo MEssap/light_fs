@@ -1,7 +1,4 @@
-use crate::{
-    block::BlockDevice,
-    cache::{get_block_cache, BLOCK_SIZE},
-};
+use crate::cache::BLOCK_SIZE;
 
 #[repr(C)]
 #[derive(Debug)]

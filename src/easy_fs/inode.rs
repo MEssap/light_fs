@@ -10,8 +10,10 @@ use super::layout::DataBlock;
 
 const INODE_DIRECT_COUNT: usize = 28;
 const INODE_INDIRECT1_COUNT: usize = BLOCK_SIZE / 4;
-const DIRECT_BOUND: usize = 0;
+const INODE_INDIRECT2_COUNT: usize = INODE_INDIRECT1_COUNT * INODE_INDIRECT1_COUNT;
+const DIRECT_BOUND: usize = INODE_DIRECT_COUNT;
 const INDIRECT1_BOUND: usize = DIRECT_BOUND + INODE_INDIRECT1_COUNT;
+const INDIRECT2_BOUND: usize = INDIRECT1_BOUND + INODE_INDIRECT2_COUNT;
 
 type IndirectBlock = [u32; BLOCK_SIZE / 4];
 
@@ -91,7 +93,7 @@ impl DiskInode {
     /// Return number of blocks needed include indirect1/2.
     pub fn total_blocks(size: u32) -> u32 {
         let data_blocks = Self::_data_blocks(size) as usize;
-        let mut total = data_blocks as usize;
+        let mut total = data_blocks;
         // indirect1
         if data_blocks > INODE_DIRECT_COUNT {
             total += 1;
@@ -119,14 +121,146 @@ impl DiskInode {
         new_blocks: Vec<u32>,
         block_device: &Arc<dyn BlockDevice>,
     ) {
-        todo!()
+        self.size = new_size;
+        let mut current_blocks = self.data_blocks();
+        let mut total_blocks = self.data_blocks();
+        let mut new_blocks = new_blocks.into_iter();
+        // fill direct
+        while current_blocks < total_blocks.min(INODE_DIRECT_COUNT as u32) {
+            self.direct[current_blocks as usize] = new_blocks.next().unwrap();
+            current_blocks += 1;
+        }
+        // alloc indirect1
+        if total_blocks > INODE_DIRECT_COUNT as u32 {
+            if current_blocks == INODE_DIRECT_COUNT as u32 {
+                self.indirect1 = new_blocks.next().unwrap();
+            }
+            current_blocks -= INODE_DIRECT_COUNT as u32;
+            total_blocks -= INODE_DIRECT_COUNT as u32;
+        } else {
+            return;
+        }
+        // fill indirect1
+        get_block_cache(self.indirect1 as usize, Arc::clone(block_device))
+            .lock()
+            .modify(0, |indirect1: &mut IndirectBlock| {
+                while current_blocks < total_blocks.min(INODE_INDIRECT1_COUNT as u32) {
+                    indirect1[current_blocks as usize] = new_blocks.next().unwrap();
+                    current_blocks += 1;
+                }
+            });
+        // alloc indirect2
+        if total_blocks > INODE_INDIRECT1_COUNT as u32 {
+            if current_blocks == INODE_INDIRECT1_COUNT as u32 {
+                self.indirect2 = new_blocks.next().unwrap();
+            }
+            current_blocks -= INODE_INDIRECT1_COUNT as u32;
+            total_blocks -= INODE_INDIRECT1_COUNT as u32;
+        } else {
+            return;
+        }
+        // fill indirect2 from (a0, b0) -> (a1, b1)
+        let mut a0 = current_blocks as usize / INODE_INDIRECT1_COUNT;
+        let mut b0 = current_blocks as usize % INODE_INDIRECT1_COUNT;
+        let a1 = total_blocks as usize / INODE_INDIRECT1_COUNT;
+        let b1 = total_blocks as usize % INODE_INDIRECT1_COUNT;
+        // alloc low-level indirect1
+        get_block_cache(self.indirect2 as usize, Arc::clone(block_device))
+            .lock()
+            .modify(0, |indirect2: &mut IndirectBlock| {
+                while (a0 < a1) || (a0 == a1 && b0 < b1) {
+                    if b0 == 0 {
+                        indirect2[a0] = new_blocks.next().unwrap();
+                    }
+                    // fill current
+                    get_block_cache(indirect2[a0] as usize, Arc::clone(block_device))
+                        .lock()
+                        .modify(0, |indirect1: &mut IndirectBlock| {
+                            indirect1[b0] = new_blocks.next().unwrap();
+                        });
+                    // move to next
+                    b0 += 1;
+                    if b0 == INODE_INDIRECT1_COUNT {
+                        b0 = 0;
+                        a0 += 1;
+                    }
+                }
+            });
     }
 
     /// Clear size to zero and return blocks that should be deallocated.
     ///
     /// We will clear the block contents to zero later.
     pub fn clear_size(&mut self, block_device: &Arc<dyn BlockDevice>) -> Vec<u32> {
-        todo!()
+        let mut v: Vec<u32> = Vec::new();
+        let mut data_blocks = self.data_blocks() as usize;
+        self.size = 0;
+        let mut current_blocks = 0usize;
+        // direct
+        while current_blocks < data_blocks.min(INODE_DIRECT_COUNT) {
+            v.push(self.direct[current_blocks]);
+            self.direct[current_blocks] = 0;
+            current_blocks += 1;
+        }
+        // indirect1 block
+        if data_blocks > INODE_DIRECT_COUNT {
+            v.push(self.indirect1);
+            data_blocks -= INODE_DIRECT_COUNT;
+            current_blocks = 0;
+        } else {
+            return v;
+        }
+        // indirect1
+        get_block_cache(self.indirect1 as usize, Arc::clone(block_device))
+            .lock()
+            .modify(0, |indirect1: &mut IndirectBlock| {
+                while current_blocks < data_blocks.min(INODE_INDIRECT1_COUNT) {
+                    v.push(indirect1[current_blocks]);
+                    //indirect1[current_blocks] = 0;
+                    current_blocks += 1;
+                }
+            });
+        self.indirect1 = 0;
+        // indirect2 block
+        if data_blocks > INODE_INDIRECT1_COUNT {
+            v.push(self.indirect2);
+            data_blocks -= INODE_INDIRECT1_COUNT;
+        } else {
+            return v;
+        }
+        // indirect2
+        assert!(data_blocks <= INODE_INDIRECT2_COUNT);
+        let a1 = data_blocks / INODE_INDIRECT1_COUNT;
+        let b1 = data_blocks % INODE_INDIRECT1_COUNT;
+        get_block_cache(self.indirect2 as usize, Arc::clone(block_device))
+            .lock()
+            .modify(0, |indirect2: &mut IndirectBlock| {
+                // full indirect1 blocks
+                for entry in indirect2.iter_mut().take(a1) {
+                    v.push(*entry);
+                    get_block_cache(*entry as usize, Arc::clone(block_device))
+                        .lock()
+                        .modify(0, |indirect1: &mut IndirectBlock| {
+                            for entry in indirect1.iter() {
+                                v.push(*entry);
+                            }
+                        });
+                }
+                // last indirect1 block
+                if b1 > 0 {
+                    v.push(indirect2[a1]);
+                    get_block_cache(indirect2[a1] as usize, Arc::clone(block_device))
+                        .lock()
+                        .modify(0, |indirect1: &mut IndirectBlock| {
+                            for entry in indirect1.iter().take(b1) {
+                                v.push(*entry);
+                            }
+                        });
+                    //indirect2[a1] = 0;
+                }
+            });
+        self.indirect2 = 0;
+        v
     }
 
     /// 将文件内容从offset字节开始的部分读到内存中的缓冲区buf中
@@ -178,5 +312,55 @@ impl DiskInode {
         }
 
         read_size
+    }
+
+    pub fn write_at(
+        &self,
+        offset: usize,
+        buf: &[u8],
+        block_device: &Arc<dyn BlockDevice>,
+    ) -> usize {
+        let mut start = offset;
+        let end = (offset + buf.len()).min(self.size as usize);
+
+        if start >= end {
+            return 0;
+        }
+
+        let mut start_block = start / BLOCK_SIZE;
+        let mut write_size = 0usize;
+
+        loop {
+            // calculate end of current block
+            let mut end_current_block = (start / BLOCK_SIZE + 1) * BLOCK_SIZE;
+            end_current_block = end_current_block.min(end);
+
+            // write and update write size
+            let block_write_size = end_current_block - start;
+            let src = &buf[write_size..write_size + block_write_size];
+
+            get_block_cache(
+                self.get_block_id(start_block as u32, block_device) as usize,
+                Arc::clone(block_device),
+            )
+            .lock()
+            .modify(0, |data_block: &mut DataBlock| {
+                let dst =
+                    &mut data_block[start % BLOCK_SIZE..start % BLOCK_SIZE + block_write_size];
+
+                dst.copy_from_slice(src);
+            });
+            write_size += block_write_size;
+
+            // move to next block
+            if end_current_block == end {
+                break;
+            }
+
+            start_block += 1;
+            start = end_current_block;
+        }
+
+        write_size
     }
 }

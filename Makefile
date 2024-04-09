@@ -1,4 +1,4 @@
-DISK = $(shell if [ ! -e "disk.img" ];then qemu-img create -f raw disk.img 100M;else echo "disk.img";fi|grep -o "disk.img")
+DISK = $(shell if [ ! -e "efs.img" ];then qemu-img create -f raw efs.img 100M;else echo "efs.img";fi|grep -o "efs.img")
 
 test: $(DISK)
 	cargo test -- --nocapture
