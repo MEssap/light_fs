@@ -4,8 +4,9 @@ pub mod bitmap;
 pub mod directory;
 pub mod inode;
 pub mod layout;
+pub mod vfs;
 
-use self::bitmap::Bitmap;
+use self::{bitmap::Bitmap, vfs::Inode};
 use crate::{
     block::BlockDevice,
     cache::{get_block_cache, BLOCK_SIZE},
@@ -153,5 +154,15 @@ impl EasyFileSystem {
     /// 获取data_block所在的块设备号
     pub fn get_data_block_id(&self, data_block_id: u32) -> u32 {
         self.data_area_start_block + data_block_id
+    }
+
+    /// 获取根目录的inode
+    pub fn root_inode(efs: &Arc<Mutex<Self>>) -> Inode {
+        let lock_fs = efs.lock();
+        // acquire efs lock temporarily
+        let block_device = Arc::clone(&lock_fs.block_device);
+        let (block_id, block_offset) = lock_fs.get_disk_inode_pos(0);
+        // release efs lock
+        Inode::new(block_id, block_offset, Arc::clone(efs), block_device)
     }
 }

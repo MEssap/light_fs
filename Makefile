@@ -1,7 +1,9 @@
-DISK = $(shell if [ ! -e "disk.img" ];then qemu-img create -f raw disk.img 100M;else echo "disk.img";fi|grep -o "disk.img")
+EFS = $(shell if [ ! -e "efs.img" ];then qemu-img create -f raw efs.img 100M;else echo "efs.img";fi|grep -o "efs.img")
+FAT32 = $(shell if [ ! -e "fat32.img" ];then qemu-img create -f raw fat32.img 100M;mkfs.fat -F 32 fat32.img;else echo "fat32.img";fi|grep -o "fat32.img")
 
-test: $(DISK)
+test: $(EFS) $(FAT32)
 	cargo test -- --nocapture
 
 clean:
-	rm $(DISK)
+	cargo clean
+	rm $(EFS) $(FAT32)

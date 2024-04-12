@@ -1,7 +1,7 @@
 extern crate alloc;
 
 use crate::{block::BlockDevice, BLOCK_CACHE_MANAGER};
-use alloc::{collections::VecDeque, sync::Arc, vec::Vec};
+use alloc::{collections::VecDeque, sync::Arc};
 use xx_mutex_lock::Mutex;
 
 pub const BLOCK_SIZE: usize = 512;
@@ -87,6 +87,15 @@ impl BlockCacheManager {
         }
     }
 
+    pub fn sync_all(&mut self) {
+        for (_, cache) in &self.cache_queue {
+            let cache_lock = cache.lock();
+            cache_lock
+                .block_device
+                .write_block(cache_lock.block_id, &cache_lock.cache);
+        }
+    }
+
     pub fn get_block_cache(
         &mut self,
         block_id: usize,
@@ -120,13 +129,6 @@ impl BlockCacheManager {
             self.cache_queue
                 .push_back((block_id, Arc::clone(&block_cache)));
             block_cache
-        }
-    }
-
-    /// use this to sync all cache
-    pub fn sync_all(&self) {
-        for (_, cache) in &self.cache_queue {
-            cache.lock().sync();
         }
     }
 }

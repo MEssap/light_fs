@@ -17,8 +17,12 @@ mod tests {
 
     use crate::{
         block::BlockDevice,
-        cache::{get_block_cache, BlockCache, BLOCK_SIZE},
-        easy_fs::{bitmap::Bitmap, layout::SuperBlock, EasyFileSystem},
+        cache::{get_block_cache, BLOCK_SIZE},
+        easy_fs::{
+            inode::{DiskInode, DiskInodeType},
+            layout::SuperBlock,
+            EasyFileSystem,
+        },
         BLOCK_CACHE_MANAGER,
     };
     use alloc::sync::Arc;
@@ -28,6 +32,7 @@ mod tests {
     };
     use xx_mutex_lock::Mutex;
 
+    // 模拟硬盘驱动
     struct BlockFile(Mutex<File>);
     impl BlockDevice for BlockFile {
         fn read_block(&self, block_id: usize, buf: &mut [u8]) {
@@ -49,24 +54,32 @@ mod tests {
         }
     }
 
+    impl Drop for BlockFile {
+        fn drop(&mut self) {
+            let _ = self.0.lock().sync_all();
+        }
+    }
+
     #[test]
-    fn mkfs() {
-        let block_file = Arc::new(BlockFile(Mutex::new({
+    fn tests() {
+        let block_file: Arc<BlockFile> = Arc::new(BlockFile(Mutex::new({
             let f = OpenOptions::new()
                 .read(true)
                 .write(true)
                 .create(true)
-                .open("./disk.img")
+                .truncate(true)
+                .open("./efs.img")
                 .expect("cannot open img");
             f.set_len(100 * 1024 * 1024).unwrap();
             f
         })));
 
-        let efs = EasyFileSystem::create(
-            block_file as Arc<dyn BlockDevice>,
-            100 * 1024 * 1024 / 512,
-            1,
-        );
+        let efs = EasyFileSystem::create(block_file.clone(), 100 * 1024 * 1024 / 512, 1);
+
+        let buf = [0x61u8; 32];
+
+        let root_inode = EasyFileSystem::root_inode(&efs);
+        root_inode.create("test.txt").unwrap().write_at(0, &buf);
 
         BLOCK_CACHE_MANAGER.lock().sync_all();
     }
