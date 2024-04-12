@@ -87,6 +87,15 @@ impl BlockCacheManager {
         }
     }
 
+    pub fn sync_all(&mut self) {
+        for (_, cache) in &self.cache_queue {
+            let cache_lock = cache.lock();
+            cache_lock
+                .block_device
+                .write_block(cache_lock.block_id, &cache_lock.cache);
+        }
+    }
+
     pub fn get_block_cache(
         &mut self,
         block_id: usize,

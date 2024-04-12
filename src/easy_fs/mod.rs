@@ -158,94 +158,11 @@ impl EasyFileSystem {
 
     /// 获取根目录的inode
     pub fn root_inode(efs: &Arc<Mutex<Self>>) -> Inode {
-        let block_device = Arc::clone(&efs.lock().block_device);
+        let lock_fs = efs.lock();
         // acquire efs lock temporarily
-        let (block_id, block_offset) = efs.lock().get_disk_inode_pos(0);
+        let block_device = Arc::clone(&lock_fs.block_device);
+        let (block_id, block_offset) = lock_fs.get_disk_inode_pos(0);
         // release efs lock
         Inode::new(block_id, block_offset, Arc::clone(efs), block_device)
     }
 }
-
-//#[cfg(test)]
-//mod tests {
-//    extern crate alloc;
-//    extern crate std;
-//
-//    use crate::{
-//        block::BlockDevice, cache::BLOCK_SIZE, easy_fs::EasyFileSystem, BLOCK_CACHE_MANAGER,
-//    };
-//    use alloc::sync::Arc;
-//    use std::{
-//        fs::{File, OpenOptions},
-//        io::{Read, Seek, SeekFrom, Write},
-//    };
-//    use xx_mutex_lock::Mutex;
-//
-//    struct BlockFile(Mutex<File>);
-//    impl BlockDevice for BlockFile {
-//        fn read_block(&self, block_id: usize, buf: &mut [u8]) {
-//            let mut file = self.0.lock();
-//            file.seek(SeekFrom::Start((block_id * BLOCK_SIZE) as u64))
-//                .expect("Error when seeking!");
-//            assert_eq!(file.read(buf).unwrap(), BLOCK_SIZE, "Not a complete block!");
-//        }
-//
-//        fn write_block(&self, block_id: usize, buf: &[u8]) {
-//            let mut file = self.0.lock();
-//            file.seek(SeekFrom::Start((block_id * BLOCK_SIZE) as u64))
-//                .expect("Error when seeking!");
-//            assert_eq!(
-//                file.write(buf).unwrap(),
-//                BLOCK_SIZE,
-//                "Not a complete block!"
-//            );
-//        }
-//    }
-//
-//    fn mkfs() {
-//        let block_file = Arc::new(BlockFile(Mutex::new({
-//            let f = OpenOptions::new()
-//                .read(true)
-//                .write(true)
-//                .create(true)
-//                .truncate(true)
-//                .open("./efs.img")
-//                .expect("cannot open img");
-//            f.set_len(100 * 1024 * 1024).unwrap();
-//            f
-//        })));
-//
-//        let _ = EasyFileSystem::create(
-//            block_file as Arc<dyn BlockDevice>,
-//            100 * 1024 * 1024 / 512,
-//            1,
-//        );
-//    }
-//
-//    #[test]
-//    fn efs_test() {
-//        mkfs();
-//
-//        let block_file = Arc::new(BlockFile(Mutex::new({
-//            let f = OpenOptions::new()
-//                .read(true)
-//                .write(true)
-//                .truncate(true)
-//                .open("./efs.img")
-//                .expect("cannot open img");
-//            f.set_len(100 * 1024 * 1024).unwrap();
-//            f
-//        })));
-//
-//        // create test
-//        let efs = EasyFileSystem::open(block_file.clone());
-//        //let root_inode = EasyFileSystem::root_inode(&efs);
-//        //let buf = [0x61u8; 16];
-//        //root_inode.create("flag.txt").unwrap().write_at(0, &buf);
-//
-//        // read test
-//        //if let Some(file) = root_inode.find("flag.txt") {
-//        //    println!("{:#x?}", file.ls());
-//        //}
-//    }
-//}

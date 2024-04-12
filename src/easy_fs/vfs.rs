@@ -6,7 +6,7 @@ use super::{
 };
 use crate::{
     block::BlockDevice,
-    cache::get_block_cache,
+    cache::{get_block_cache, BLOCK_SIZE},
     easy_fs::directory::{DirectoryEntry, DIRENT_SIZE},
 };
 use alloc::sync::Arc;
@@ -34,13 +34,13 @@ impl Inode {
         }
     }
 
-    fn read_disk_inode<V>(&self, f: impl FnOnce(&DiskInode) -> V) -> V {
+    pub fn read_disk_inode<V>(&self, f: impl FnOnce(&DiskInode) -> V) -> V {
         get_block_cache(self.block_id, Arc::clone(&self.block_device))
             .lock()
             .read(self.block_offset, f)
     }
 
-    fn modify_disk_inode<V>(&self, f: impl FnOnce(&mut DiskInode) -> V) -> V {
+    pub fn modify_disk_inode<V>(&self, f: impl FnOnce(&mut DiskInode) -> V) -> V {
         get_block_cache(self.block_id, Arc::clone(&self.block_device))
             .lock()
             .modify(self.block_offset, f)

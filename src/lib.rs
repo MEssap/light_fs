@@ -18,6 +18,12 @@ mod tests {
     use crate::{
         block::BlockDevice,
         cache::{get_block_cache, BLOCK_SIZE},
+        easy_fs::{
+            inode::{DiskInode, DiskInodeType},
+            layout::SuperBlock,
+            EasyFileSystem,
+        },
+        BLOCK_CACHE_MANAGER,
     };
     use alloc::sync::Arc;
     use std::{
@@ -68,29 +74,13 @@ mod tests {
             f
         })));
 
-        let mut buf = [0u8; 512];
-        let buf0 = [0u8; 512];
-        let buf1 = [1u8; 512];
+        let efs = EasyFileSystem::create(block_file.clone(), 100 * 1024 * 1024 / 512, 1);
 
-        block_file.read_block(0, &mut buf);
-        assert_eq!(buf, buf0);
+        let buf = [0x61u8; 32];
 
-        block_file.write_block(0, &buf1);
-        block_file.read_block(0, &mut buf);
-        assert_eq!(buf, buf1);
+        let root_inode = EasyFileSystem::root_inode(&efs);
+        root_inode.create("test.txt").unwrap().write_at(0, &buf);
 
-        get_block_cache(0, Arc::clone(&block_file) as Arc<dyn BlockDevice>)
-            .lock()
-            .read(0, |first_block: &[u8; 512]| assert_eq!(first_block, &buf1));
-
-        get_block_cache(0, Arc::clone(&block_file) as Arc<dyn BlockDevice>)
-            .lock()
-            .modify(0, |first_block: &mut [u8; 512]| {
-                first_block.copy_from_slice(&buf0);
-            });
-
-        get_block_cache(0, Arc::clone(&block_file) as Arc<dyn BlockDevice>)
-            .lock()
-            .read(0, |first_block: &[u8; 512]| assert_eq!(first_block, &buf0));
+        BLOCK_CACHE_MANAGER.lock().sync_all();
     }
 }

@@ -17,13 +17,14 @@ const INDIRECT2_BOUND: usize = INDIRECT1_BOUND + INODE_INDIRECT2_COUNT;
 
 type IndirectBlock = [u32; BLOCK_SIZE / 4];
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum DiskInodeType {
     File,
     Directory,
 }
 
 #[repr(C)]
+#[derive(Debug)]
 // 每个文件/目录在磁盘上均以一个DiskInode的形式存储，其中保存了文件的元数据
 pub struct DiskInode {
     pub size: u32,                         // 文件大小/Bytes
@@ -109,20 +110,21 @@ impl DiskInode {
         total as u32
     }
 
+    /// 返回需要的blocks数目
     pub fn blocks_num_needed(&self, new_size: u32) -> u32 {
         assert!(new_size >= self.size);
         Self::total_blocks(new_size) - Self::total_blocks(self.size)
     }
 
-    // 扩充文件
+    /// 扩充文件内容(add inner blocks)
     pub fn increase_size(
         &mut self,
         new_size: u32,
         new_blocks: Vec<u32>,
         block_device: &Arc<dyn BlockDevice>,
     ) {
-        self.size = new_size;
         let mut current_blocks = self.data_blocks();
+        self.size = new_size;
         let mut total_blocks = self.data_blocks();
         let mut new_blocks = new_blocks.into_iter();
         // fill direct
@@ -327,6 +329,7 @@ impl DiskInode {
             return 0;
         }
 
+        // inner block
         let mut start_block = start / BLOCK_SIZE;
         let mut write_size = 0usize;
 
