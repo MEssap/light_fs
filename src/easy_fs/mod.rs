@@ -1,10 +1,10 @@
 extern crate alloc;
 
-pub mod bitmap;
-pub mod directory;
-pub mod inode;
-pub mod layout;
-pub mod vfs;
+pub(crate) mod bitmap;
+pub(crate) mod directory;
+pub(crate) mod inode;
+pub(crate) mod layout;
+pub(crate) mod vfs;
 
 use self::{bitmap::Bitmap, vfs::Inode};
 use crate::{
@@ -164,5 +164,74 @@ impl EasyFileSystem {
         let (block_id, block_offset) = lock_fs.get_disk_inode_pos(0);
         // release efs lock
         Inode::new(block_id, block_offset, Arc::clone(efs), block_device)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    extern crate alloc;
+    extern crate std;
+
+    use crate::{
+        block::BlockDevice,
+        cache::{get_block_cache, BLOCK_SIZE},
+        easy_fs::{
+            inode::{DiskInode, DiskInodeType},
+            layout::SuperBlock,
+            EasyFileSystem,
+        },
+        BLOCK_CACHE_MANAGER,
+    };
+    use alloc::sync::Arc;
+    use std::{
+        fs::{File, OpenOptions},
+        io::{Read, Seek, SeekFrom, Write},
+    };
+    use xx_mutex_lock::Mutex;
+
+    // 模拟硬盘驱动
+    struct BlockFile(Mutex<File>);
+    impl BlockDevice for BlockFile {
+        fn read_block(&self, block_id: usize, buf: &mut [u8]) {
+            let mut file = self.0.lock();
+            file.seek(SeekFrom::Start((block_id * BLOCK_SIZE) as u64))
+                .expect("Error when seeking!");
+            assert_eq!(file.read(buf).unwrap(), BLOCK_SIZE, "Not a complete block!");
+        }
+
+        fn write_block(&self, block_id: usize, buf: &[u8]) {
+            let mut file = self.0.lock();
+            file.seek(SeekFrom::Start((block_id * BLOCK_SIZE) as u64))
+                .expect("Error when seeking!");
+            assert_eq!(
+                file.write(buf).unwrap(),
+                BLOCK_SIZE,
+                "Not a complete block!"
+            );
+        }
+    }
+
+    #[test]
+    fn efy_tests() {
+        let block_file: Arc<BlockFile> = Arc::new(BlockFile(Mutex::new({
+            let f = OpenOptions::new()
+                .read(true)
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .open("./efs.img")
+                .expect("cannot open img");
+            f.set_len(100 * 1024 * 1024).unwrap();
+            f
+        })));
+
+        let efs = EasyFileSystem::create(block_file.clone(), 100 * 1024 * 1024 / 512, 1);
+
+        let buf = [0x61u8; 32];
+
+        let root_inode = EasyFileSystem::root_inode(&efs);
+        root_inode.create("test.txt").unwrap().write_at(0, &buf);
+
+        BLOCK_CACHE_MANAGER.lock().sync_all();
     }
 }

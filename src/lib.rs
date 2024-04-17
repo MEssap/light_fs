@@ -23,6 +23,7 @@ mod tests {
             layout::SuperBlock,
             EasyFileSystem,
         },
+        fat32::{layout::BIOSParameterBlock, FAT32FileSystem},
         BLOCK_CACHE_MANAGER,
     };
     use alloc::sync::Arc;
@@ -54,33 +55,46 @@ mod tests {
         }
     }
 
-    impl Drop for BlockFile {
-        fn drop(&mut self) {
-            let _ = self.0.lock().sync_all();
-        }
-    }
-
     #[test]
-    fn tests() {
+    fn fat32_tests() {
         let block_file: Arc<BlockFile> = Arc::new(BlockFile(Mutex::new({
             let f = OpenOptions::new()
                 .read(true)
                 .write(true)
-                .create(true)
-                .truncate(true)
-                .open("./efs.img")
+                .open("./fat32.img")
                 .expect("cannot open img");
             f.set_len(100 * 1024 * 1024).unwrap();
             f
         })));
 
-        let efs = EasyFileSystem::create(block_file.clone(), 100 * 1024 * 1024 / 512, 1);
+        let fat32_fs = FAT32FileSystem::new(block_file.clone());
+        let root_dir = fat32_fs.root_directory();
+        root_dir.ls();
 
-        let buf = [0x61u8; 32];
+        //let mut offset = 0;
+        //get_block_cache(0, block_file.clone())
+        //    .lock()
+        //    .read(0, |block: &BIOSParameterBlock| {
+        //        println!("{:#x?}", block);
+        //        let table = block.get_table();
+        //        offset = table.inner_block();
+        //        //println!("{:#x?}", table);
+        //        println!("{:#x?}", block.bytes_per_cluster());
+        //    });
 
-        let root_inode = EasyFileSystem::root_inode(&efs);
-        root_inode.create("test.txt").unwrap().write_at(0, &buf);
+        //get_block_cache(offset, block_file.clone())
+        //    .lock()
+        //    .read(0, |block: &[u32; 32]| {
+        //        println!("{:#x?}", block);
+        //    });
 
-        BLOCK_CACHE_MANAGER.lock().sync_all();
+        //let efs = EasyFileSystem::create(block_file.clone(), 100 * 1024 * 1024 / 512, 1);
+
+        //let buf = [0x61u8; 32];
+
+        //let root_inode = EasyFileSystem::root_inode(&efs);
+        //root_inode.create("test.txt").unwrap().write_at(0, &buf);
+
+        //BLOCK_CACHE_MANAGER.lock().sync_all();
     }
 }
