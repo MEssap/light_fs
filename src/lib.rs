@@ -1,8 +1,10 @@
+#![no_std]
+
 pub mod block;
 pub mod cache;
 pub mod easy_fs;
-pub mod ext4;
-pub mod fat32;
+// pub mod ext4;
+// pub mod fat32;
 pub mod file;
 
 use crate::cache::BlockCacheManager;

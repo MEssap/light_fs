@@ -4,7 +4,7 @@ use crate::{
     block::BlockDevice,
     cache::{get_block_cache, BLOCK_SIZE},
 };
-use alloc::sync::Arc;
+use alloc::{sync::Arc, vec::Vec};
 
 use super::layout::DataBlock;
 

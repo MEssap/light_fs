@@ -9,7 +9,7 @@ use crate::{
     cache::{get_block_cache, BLOCK_SIZE},
     easy_fs::directory::{DirectoryEntry, DIRENT_SIZE},
 };
-use alloc::sync::Arc;
+use alloc::{string::String, sync::Arc, vec::Vec};
 use xx_mutex_lock::{Mutex, MutexGuard};
 
 pub struct Inode {
