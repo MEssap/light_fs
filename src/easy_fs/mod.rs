@@ -16,7 +16,7 @@ use crate::{
     },
 };
 use alloc::sync::Arc;
-use xx_mutex_lock::Mutex;
+use spin::Mutex;
 
 pub struct EasyFileSystem {
     pub block_device: Arc<dyn BlockDevice>,

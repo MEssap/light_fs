@@ -6,11 +6,11 @@ use super::{
 };
 use crate::{
     block::BlockDevice,
-    cache::{get_block_cache, BLOCK_SIZE},
+    cache::get_block_cache,
     easy_fs::directory::{DirectoryEntry, DIRENT_SIZE},
 };
 use alloc::{string::String, sync::Arc, vec::Vec};
-use xx_mutex_lock::{Mutex, MutexGuard};
+use spin::{Mutex, MutexGuard};
 
 pub struct Inode {
     block_id: usize,

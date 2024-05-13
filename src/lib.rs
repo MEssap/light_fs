@@ -8,7 +8,7 @@ pub mod easy_fs;
 pub mod file;
 
 use crate::cache::BlockCacheManager;
-use xx_mutex_lock::Mutex;
+use spin::Mutex;
 
 pub static BLOCK_CACHE_MANAGER: Mutex<BlockCacheManager> = Mutex::new(BlockCacheManager::new());
 
@@ -28,11 +28,11 @@ mod tests {
         BLOCK_CACHE_MANAGER,
     };
     use alloc::sync::Arc;
+    use spin::Mutex;
     use std::{
         fs::{File, OpenOptions},
         io::{Read, Seek, SeekFrom, Write},
     };
-    use xx_mutex_lock::Mutex;
 
     // 模拟硬盘驱动
     struct BlockFile(Mutex<File>);

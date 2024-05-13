@@ -10,17 +10,12 @@ mod tests {
     extern crate alloc;
     extern crate std;
 
-    use crate::{
-        block::BlockDevice,
-        cache::{get_block_cache, BLOCK_SIZE},
-    };
-    use alloc::sync::Arc;
+    use crate::{block::BlockDevice, cache::BLOCK_SIZE};
+    use spin::Mutex;
     use std::{
-        fs::{File, OpenOptions},
+        fs::File,
         io::{Read, Seek, SeekFrom, Write},
-        sync::Condvar,
     };
-    use xx_mutex_lock::Mutex;
 
     // 模拟硬盘驱动
     struct BlockFile(Mutex<File>);

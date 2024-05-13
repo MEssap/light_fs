@@ -2,7 +2,7 @@ extern crate alloc;
 
 use crate::{block::BlockDevice, BLOCK_CACHE_MANAGER};
 use alloc::{collections::VecDeque, sync::Arc};
-use xx_mutex_lock::Mutex;
+use spin::Mutex;
 
 pub const BLOCK_SIZE: usize = 512;
 pub const BLOCK_CACHE_SIZE: usize = 16;
