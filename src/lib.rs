@@ -68,7 +68,7 @@ mod tests {
             let f = OpenOptions::new()
                 .read(true)
                 .write(true)
-                .create(true)
+                .create(false)
                 .truncate(true)
                 .open("./efs.img")
                 .expect("cannot open img");
@@ -77,6 +77,7 @@ mod tests {
         })));
 
         let efs = EasyFileSystem::create(block_file.clone(), 100 * 1024 * 1024 / 512, 1);
+        let efs = EasyFileSystem::open(block_file.clone());
 
         let buf = [0x61u8; 32];
 

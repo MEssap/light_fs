@@ -5,4 +5,5 @@ edition = "2021"
 
 [dependencies]
 spin = "0.9.8"
+xxos_log = { git = "https://github.com/MEssap/xxos_log.git", branch = "main" }
 # xx_mutex_lock = { git = "https://github.com/ZyLqb/xx_mutex_lock.git", branch = "master" }
